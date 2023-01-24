@@ -1,5 +1,3 @@
-from collections import defaultdict
-
 import telebot
 from config import DATABASE_PATH, TELEGRAM_BOT_API_TOKEN
 from loguru import logger

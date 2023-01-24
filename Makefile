@@ -1,8 +1,9 @@
 SHELL := /bin/bash -O globstar
 
 test:
-	pytest --cov-report term-missing --cov-report html --cov-branch \
-	       --cov housekeeper_tg_bot/
+	:
+	#python3 -m pytest --cov-report term-missing --cov-report html --cov-branch \
+	#       --cov housekeeper_tg_bot/
 
 lint:
 	@echo

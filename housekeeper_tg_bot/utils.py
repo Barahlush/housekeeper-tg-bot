@@ -2,13 +2,13 @@ from random import choice
 from typing import cast
 
 import numpy as np
-import telebot  # type: ignore
+import telebot
 from gpt import get_gpt_response
 from messages import messages
 from models import Chat, Task, User
 from numpy.typing import NDArray
-from peewee import SqliteDatabase  # type: ignore
-from telebot.formatting import escape_markdown, mbold  # type: ignore
+from peewee import SqliteDatabase
+from telebot.formatting import escape_markdown, mbold
 
 
 def create_task_list(db: SqliteDatabase, chat_id: str) -> str:
