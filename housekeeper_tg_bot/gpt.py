@@ -19,6 +19,9 @@ def get_gpt_response(prompt: str) -> str | None:
     except (ReadTimeout, ReadTimeoutError, TimeoutError) as e:
         logger.error('GPT-3 request timeout: {}', e)
         return None
+    except Exception:
+        logger.exception('GPT-3 request failed')
+        return None
 
     if response.status_code != SUCCESS_CODE:
         logger.error('GPT-3 request failed: {}', response.text)
