@@ -6,7 +6,7 @@ from urllib3.exceptions import ReadTimeoutError
 SUCCESS_CODE = 200
 
 
-def get_gpt_response(prompt: str) -> str | None:
+def get_gpt_response(prompt: str) -> str:
     # Gets a response from GPT-3 at https://pelevin.gpt.dobro.ai/generate/
 
     request_body = {'prompt': prompt, 'length': 39}
@@ -18,9 +18,12 @@ def get_gpt_response(prompt: str) -> str | None:
         )
     except (ReadTimeout, ReadTimeoutError, TimeoutError) as e:
         logger.error('GPT-3 request timeout: {}', e)
-        return None
+        return ''
+    except Exception:
+        logger.exception('GPT-3 request failed')
+        return ''
 
     if response.status_code != SUCCESS_CODE:
         logger.error('GPT-3 request failed: {}', response.text)
-        return None
+        return ''
     return str(response.json()['replies'][0])
