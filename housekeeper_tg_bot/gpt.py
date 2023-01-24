@@ -19,5 +19,6 @@ def get_gpt_response(prompt: str) -> str | None:
         return None
 
     if response.status_code != 200:
+        logger.error('GPT-3 request failed: {}', response.text)
         return None
     return str(response.json()['replies'][0])
