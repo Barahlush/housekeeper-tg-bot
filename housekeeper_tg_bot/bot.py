@@ -50,6 +50,105 @@ def list_tasks(message: telebot.types.Message) -> None:
     bot.delete_message(message.chat.id, message.message_id)
 
 
+def task_remove_markup(chat_id: int) -> InlineKeyboardMarkup:
+    markup = InlineKeyboardMarkup()
+    with db:
+        tasks = Chat.get(chat_id=chat_id).tasks.where(
+            Task.is_finished == False  # noqa: E712
+        )
+        for task in tasks:
+            markup.add(
+                InlineKeyboardButton(
+                    text=task.text,
+                    callback_data=f'remove_task_{task.id}',
+                )
+            )
+    return markup
+
+
+@bot.message_handler(commands=['remove_task'])   # type: ignore
+def remove_task(message: telebot.types.Message) -> None:
+    response_message = 'Выберите таск для удаления'
+    bot.send_message(
+        message.chat.id,
+        response_message,
+        reply_markup=task_remove_markup(message.chat.id),
+    )
+    bot.delete_message(message.chat.id, message.message_id)
+
+
+@bot.callback_query_handler(
+    func=lambda c: ('remove_task' in c.data)
+)   # type: ignore
+def remove_task_callback(call: telebot.types.CallbackQuery) -> None:
+    task_id = int(call.data.split('_')[-1])
+    with db.atomic():
+        task = Task.get(id=task_id)
+        task.delete_instance()
+    bot.answer_callback_query(call.id, 'Удалено')
+    bot.delete_message(call.message.chat.id, task.message_id)
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+
+
+def task_complete_markup(chat_id: int) -> InlineKeyboardMarkup:
+    markup = InlineKeyboardMarkup()
+    with db:
+        tasks = Chat.get(chat_id=chat_id).tasks.where(
+            Task.is_finished == False  # noqa: E712
+        )
+        for task in tasks:
+            markup.add(
+                InlineKeyboardButton(
+                    text=task.text,
+                    callback_data=f'complete_task_{task.id}',
+                )
+            )
+    return markup
+
+
+@bot.message_handler(commands=['complete_task'])   # type: ignore
+def complete_task(message: telebot.types.Message) -> None:
+    response_message = 'Выберите таск для выполнения'
+    bot.send_message(
+        message.chat.id,
+        response_message,
+        reply_markup=task_complete_markup(message.chat.id),
+    )
+    bot.delete_message(message.chat.id, message.message_id)
+
+
+@bot.callback_query_handler(
+    func=lambda c: ('complete_task' in c.data)
+)   # type: ignore
+def complete_task_callback(call: telebot.types.CallbackQuery) -> None:
+    task_id = int(call.data.split('_')[-1])
+    with db.atomic():
+        task = Task.get(id=task_id)
+        task.is_finished = True
+        task.save()
+
+    text = build_task_message(task)
+    text = (
+        text.replace('#', '')
+        + f'\n\n✅ @{call.from_user.username} сделал задачу\!'  # noqa: W605
+    )
+    try:
+        bot.edit_message_text(
+            text,
+            call.message.chat.id,
+            task.message_id,
+            parse_mode='MarkdownV2',
+        )
+    except Exception:
+        logger.exception(messages['unknown_error'])
+        bot.answer_callback_query(
+            call.id,
+            messages['unknown_error'],
+        )
+    bot.answer_callback_query(call.id, 'Выполнено')
+    bot.delete_message(call.message.chat.id, call.message.message_id)
+
+
 @bot.message_handler(commands=['add_me'])   # type: ignore
 def add_user(message: telebot.types.Message) -> None:
 
@@ -127,16 +226,17 @@ def extract_task_text(text: str) -> str:
 
 @bot.callback_query_handler(func=lambda c: (c.data == 'done'))   # type: ignore
 def done(call: telebot.types.CallbackQuery) -> None:
-    task = list(
-        filter(
-            lambda task: task.message_id == call.message.id,
-            Chat.get(Chat.chat_id == call.message.chat.id).tasks,
-        )
-    )[0]
+    with db.atomic():
+        task = list(
+            filter(
+                lambda task: task.message_id == call.message.id,
+                Chat.get(Chat.chat_id == call.message.chat.id).tasks,
+            )
+        )[0]
 
-    task.is_finished = True
-    task.executor = User.get(User.username == call.from_user.username)
-    task.save()
+        task.is_finished = True
+        task.executor = User.get(User.username == call.from_user.username)
+        task.save()
 
     text = (
         call.message.text.replace('#', '')
@@ -254,7 +354,7 @@ def offer_no(call: telebot.types.CallbackQuery) -> None:
             )
             candidate = call.from_user
         else:
-            candidate = choose_executor(db, candidates)
+            candidate = choose_executor(db, candidates, call.message.chat.id)
         text = (
             call.message.reply_to_message.text
             + f'\n\n⭐ Задачу делает @{candidate.username}!'
@@ -283,7 +383,7 @@ def offer_no(call: telebot.types.CallbackQuery) -> None:
             )
         )[0]
 
-        task.executor = User.get(User.username == call.from_user.username)
+        task.executor = User.get(User.username == candidate.username)
         task.save()
 
     try:
@@ -337,7 +437,7 @@ def create_task(message: telebot.types.Message) -> None:
             # Select all users with at least one task in this chat
             candidates = Chat.get(chat_id=message.chat.id).users
             candidates = list(candidates)
-            candidate = choose_executor(db, candidates)
+            candidate = choose_executor(db, candidates, message.chat.id)
             if not candidate:
                 bot.send_message(
                     message.chat.id,

@@ -60,7 +60,9 @@ def build_task_message(task: Task) -> str:
     )
 
 
-def choose_executor(db: SqliteDatabase, users: list[User]) -> User | None:
+def choose_executor(
+    db: SqliteDatabase, users: list[User], chat_id: int
+) -> User | None:
     def softmax(x: NDArray[np.float32]) -> NDArray[np.float32]:
         e_x = np.exp(x - np.max(x))
         return cast(NDArray[np.float32], e_x / e_x.sum())
@@ -68,8 +70,19 @@ def choose_executor(db: SqliteDatabase, users: list[User]) -> User | None:
     with db:
         if not users:
             return None
+        # chat task counts for each user in the chat
+        task_counts_list = [
+            Task.select()
+            .where(
+                Task.chat == Chat.get(Chat.chat_id == chat_id).id,
+                Task.executor == user.id,
+            )
+            .count()
+            for user in users
+        ]
         task_counts = np.array(
-            [user.tasks.count() for user in users], dtype=float
+            task_counts_list,
+            dtype=float,
         )
         probabilities = softmax(-task_counts)
         return cast(User, np.random.choice(users, p=probabilities))
