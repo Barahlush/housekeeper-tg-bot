@@ -52,7 +52,7 @@ def build_task_message(task: Task) -> str:
         generated_text = generated_text.replace('…', '').replace('»', '')
         payload = f'{preprompt}{generated_text}'
     else:
-        payload = None
+        payload = ''
     return (
         f'\#task от @{task.creator.username}\n\n'  # noqa: W605
         f'{mbold(task.text)}\n\n'
