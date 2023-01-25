@@ -1,6 +1,7 @@
 import telebot
 from config import DATABASE_PATH, TELEGRAM_BOT_API_TOKEN
 from loguru import logger
+from media_content import get_gif_url
 from messages import messages
 from models import Chat, Task, User
 from peewee import IntegrityError, SqliteDatabase
@@ -12,6 +13,7 @@ from utils import (
     build_name,
     build_task_message,
     choose_executor,
+    create_stat_list,
     create_task_list,
 )
 
@@ -40,6 +42,19 @@ def start_message(message: telebot.types.Message) -> None:
 @bot.message_handler(commands=['tasks'])   # type: ignore
 def list_tasks(message: telebot.types.Message) -> None:
     response_message = create_task_list(db, message.chat.id)
+    response_message += '\n\nУдалить это сообщение или оставить?'
+    bot.send_message(
+        message.chat.id,
+        response_message,
+        reply_markup=ok_markup(),
+        parse_mode='MarkdownV2',
+    )
+    bot.delete_message(message.chat.id, message.message_id)
+
+
+@bot.message_handler(commands=['stats'])   # type: ignore
+def list_stats(message: telebot.types.Message) -> None:
+    response_message = create_stat_list(db, message.chat.id)
     response_message += '\n\nУдалить это сообщение или оставить?'
     bot.send_message(
         message.chat.id,
@@ -139,6 +154,13 @@ def complete_task_callback(call: telebot.types.CallbackQuery) -> None:
             task.message_id,
             parse_mode='MarkdownV2',
         )
+        bot.send_message(
+            call.message.chat.id,
+            f'✅ @{call.from_user.username} сделал задачу "{task.text}"!',
+        )
+        gif_url = get_gif_url()
+        if gif_url:
+            bot.send_animation(call.message.chat.id, gif_url)
     except Exception:
         logger.exception(messages['unknown_error'])
         bot.answer_callback_query(
@@ -248,6 +270,13 @@ def done(call: telebot.types.CallbackQuery) -> None:
             call.message.chat.id,
             call.message.message_id,
         )
+        bot.send_message(
+            call.message.chat.id,
+            f'✅ @{call.from_user.username} сделал задачу "{task.text}"!',
+        )
+        gif_url = get_gif_url()
+        if gif_url:
+            bot.send_animation(call.message.chat.id, gif_url)
     except Exception:
         logger.exception(messages['unknown_error'])
         bot.answer_callback_query(

@@ -3,7 +3,7 @@ from typing import cast
 
 import numpy as np
 import telebot
-from gpt import get_gpt_response
+from media_content import get_gpt_response
 from messages import messages
 from models import Chat, Task, User
 from numpy.typing import NDArray
@@ -26,6 +26,26 @@ def create_task_list(db: SqliteDatabase, chat_id: str) -> str:
             else:
                 task_list += '\n'
         return task_list
+
+
+def create_stat_list(db: SqliteDatabase, chat_id: str) -> str:
+    with db:
+        users = Chat.get(Chat.chat_id == chat_id).users
+        if not users:
+            return str(messages['no_tasks'])
+
+        stat_list = 'Статистика:\n\n'
+        for user in users:
+            task_count = user.tasks.where(Task.chat == chat_id).count()
+            completed_task_count = user.tasks.where(
+                Task.chat == chat_id, Task.is_finished == True  # noqa: E712
+            ).count()
+            stat_list += f'{mbold(escape_markdown(user.username))}\n'
+            stat_list += f'Количество задач: {task_count}\n'
+            stat_list += (
+                f'Количество выполненных задач: {completed_task_count}\n\n'
+            )
+        return stat_list
 
 
 def build_name(user: telebot.types.User) -> str:
