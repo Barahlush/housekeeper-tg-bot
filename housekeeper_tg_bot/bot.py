@@ -161,14 +161,14 @@ def complete_task_callback(call: telebot.types.CallbackQuery) -> None:
         gif_url = get_gif_url()
         if gif_url:
             bot.send_animation(call.message.chat.id, gif_url)
+        bot.answer_callback_query(call.id, 'Выполнено')
+        bot.delete_message(call.message.chat.id, call.message.message_id)
     except Exception:
         logger.exception(messages['unknown_error'])
         bot.answer_callback_query(
             call.id,
             messages['unknown_error'],
         )
-    bot.answer_callback_query(call.id, 'Выполнено')
-    bot.delete_message(call.message.chat.id, call.message.message_id)
 
 
 @bot.message_handler(commands=['add_me'])   # type: ignore
@@ -189,12 +189,19 @@ def add_user(message: telebot.types.Message) -> None:
             logger.exception(messages['unknown_error'])
 
     response_message += '\n\nУдалить это сообщение или оставить?'
-    bot.send_message(
-        message.chat.id,
-        response_message,
-        reply_markup=ok_markup(),
-    )
-    bot.delete_message(message.chat.id, message.message_id)
+    try:
+        bot.send_message(
+            message.chat.id,
+            response_message,
+            reply_markup=ok_markup(),
+        )
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception:
+        logger.exception(messages['unknown_error'])
+        bot.send_message(
+            message.chat.id,
+            messages['unknown_error'],
+        )
 
 
 def ok_markup() -> InlineKeyboardMarkup:
@@ -484,12 +491,16 @@ def create_task(message: telebot.types.Message) -> None:
         except Exception:
             logger.exception('Failed to create task:')
 
-            bot.send_message(
-                message.chat.id,
-                messages['unknown_error']
-                + '\n\nУдалить это сообщение или оставить?',
-                reply_markup=ok_markup(),
-            )
+            try:
+                bot.send_message(
+                    message.chat.id,
+                    messages['unknown_error']
+                    + '\n\nУдалить это сообщение или оставить?',
+                    reply_markup=ok_markup(),
+                )
+            except Exception:
+                logger.exception('Failed to send error message:')
+                return
 
 
 bot.polling(none_stop=True)
